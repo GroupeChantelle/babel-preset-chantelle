@@ -22,65 +22,51 @@ const availableTargets = {
   client: { browsers },
   universal: { node, browsers }
 }
-const targets = () => availableTargets[getOrSetBuildTarget()]
+const targets = () => ({
+  targets:
+    process.env.BABEL_ENV_TARGETS || availableTargets[getOrSetBuildTarget()]
+})
 
-// const flowRuntimePlugin = [
-//   require.resolve('babel-plugin-flow-runtime'),
-//   { annotate: true, assert: false }
-// ]
+const helpers = () => ({
+  helpers: isTest()
+})
 
 const devPlugins = () =>
-  isProduction() ? [] : [require.resolve('babel-plugin-ramda')]
-// : [require.resolve('babel-plugin-ramda'), flowRuntimePlugin]
+  isProduction() ? [require.resolve('babel-plugin-ramda')] : []
 
 const commonPlugins = () => [
+  [
+    require.resolve('@babel/plugin-proposal-pipeline-operator'),
+    { proposal: 'minimal' }
+  ],
+  require.resolve('@babel/plugin-proposal-object-rest-spread'),
   require.resolve('babel-plugin-add-react-displayname'),
-  // require.resolve('babel-plugin-add-module-exports'),
   require.resolve('@babel/plugin-proposal-class-properties'),
   [require.resolve('@babel/plugin-proposal-decorators'), { legacy: true }],
   require.resolve('@babel/plugin-proposal-export-default-from'),
   require.resolve('@babel/plugin-proposal-export-namespace-from'),
   require.resolve('@babel/plugin-proposal-nullish-coalescing-operator'),
   require.resolve('@babel/plugin-proposal-optional-chaining'),
-  [
-    require.resolve('@babel/plugin-proposal-pipeline-operator'),
-    { proposal: 'minimal' }
-  ],
   require.resolve('@babel/plugin-proposal-throw-expressions'),
   require.resolve('@babel/plugin-syntax-dynamic-import'),
   require.resolve('@babel/plugin-transform-react-jsx'),
   require.resolve('@babel/plugin-transform-regenerator'),
-  [
-    require.resolve('@babel/plugin-transform-runtime'),
-    {
-      helpers: false,
-      regenerator: true
-    }
-  ]
+  [require.resolve('@babel/plugin-transform-runtime'), helpers()]
 ]
 
-const devPresets = () =>
-  isProduction() ? [] : [require.resolve('babel-preset-flow-runtime')]
-// : [require.resolve('babel-preset-flow-runtime')]
+const devPresets = () => (isProduction() ? [] : [])
 
 const modules = () =>
-  process.env.BABEL_ENV_MODULES === true || isTest() === true ? {} : {}
+  process.env.BABEL_ENV_MODULES === true || isTest() === true
+    ? {}
+    : { modules: false }
 
 const commonPresets = () => [
-  // require.resolve('babel-preset-react-app'),
-  require.resolve('@babel/preset-react'),
   require.resolve('@babel/preset-flow'),
+  require.resolve('@babel/preset-react'),
   [
     require.resolve('@babel/preset-env'),
-    Object.assign(
-      {},
-      {
-        shippedProposals: true,
-        targets: targets(),
-        useBuiltIns: 'usage'
-      },
-      modules()
-    )
+    Object.assign({}, targets(), modules())
   ]
 ]
 
