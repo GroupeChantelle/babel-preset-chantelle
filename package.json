@@ -1,6 +1,6 @@
 {
   "name": "@nod/babel-preset-nod",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "description": "Common Babel preset",
   "main": "src/index.js",
   "sideEffects": false,
