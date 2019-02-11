@@ -1,10 +1,10 @@
-/* eslint no-unused-expressions:0, better/explicit-return:0, fp/no-nil:0, fp/no-mutation:0, import/no-commonjs:0, fp/no-unused-expression:0 */
-
 import preset from './index'
+
+const name = '@nod/babel-preset-nod'
 
 const { plugins, presets } = preset()
 
-describe('@nod/babel-preset-nod', () => {
+describe(name, () => {
   test('contains plugins', () => {
     expect(plugins.length > 0).toBeTruthy()
   })

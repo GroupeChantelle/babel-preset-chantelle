@@ -1,4 +1,10 @@
-/* eslint no-console:0, fp/no-mutation:0, import/no-commonjs:0, fp/no-unused-expression:0 */
+/* eslint global-require:0 */
+
+const debugFactory = require('debug')
+
+const moduleName = '@nod/babel-preset-nod'
+
+const debug = debugFactory(moduleName)
 
 const getOrSetEnv = () => {
   process.env.BABEL_ENV =
@@ -6,74 +12,185 @@ const getOrSetEnv = () => {
   return process.env.BABEL_ENV
 }
 
-const getOrSetBuildTarget = () => {
-  process.env.BUILD_TARGET = process.env.BUILD_TARGET || 'universal'
-  return process.env.BUILD_TARGET
-}
-
 const isProduction = () => getOrSetEnv() === 'production'
 const isTest = () => getOrSetEnv() === 'test'
 
+const getOrSetBuildTarget = () => {
+  process.env.PLATFORM = isTest() ? 'server' : process.env.PLATFORM || 'client'
+  return process.env.PLATFORM
+}
+
 const browsers = ['last 2 versions']
 const node = 'current'
-
 const availableTargets = {
   server: { node },
   client: { browsers },
   universal: { node, browsers }
 }
 const targets = () => ({
-  targets:
-    process.env.BABEL_ENV_TARGETS || availableTargets[getOrSetBuildTarget()]
+  targets: availableTargets[getOrSetBuildTarget()]
 })
 
-const helpers = () => ({
-  helpers: isTest()
-})
+const nothing = () => []
 
-const devPlugins = () =>
-  isProduction() ? [require.resolve('babel-plugin-ramda')] : []
-
-const commonPlugins = () => [
-  [
-    require.resolve('@babel/plugin-proposal-pipeline-operator'),
-    { proposal: 'minimal' }
-  ],
-  require.resolve('@babel/plugin-proposal-object-rest-spread'),
-  require.resolve('babel-plugin-add-react-displayname'),
-  require.resolve('@babel/plugin-proposal-class-properties'),
-  [require.resolve('@babel/plugin-proposal-decorators'), { legacy: true }],
-  require.resolve('@babel/plugin-proposal-export-default-from'),
-  require.resolve('@babel/plugin-proposal-export-namespace-from'),
-  require.resolve('@babel/plugin-proposal-nullish-coalescing-operator'),
-  require.resolve('@babel/plugin-proposal-optional-chaining'),
-  require.resolve('@babel/plugin-proposal-throw-expressions'),
-  require.resolve('@babel/plugin-syntax-dynamic-import'),
-  require.resolve('@babel/plugin-transform-react-jsx'),
-  require.resolve('@babel/plugin-transform-regenerator'),
-  [require.resolve('@babel/plugin-transform-runtime'), helpers()]
+const [
+  macrosPlugin,
+  reactRemovePropTypesPlugin,
+  ramdaPlugin,
+  pipelineOperatorProposalPlugin,
+  pipelineOperatorSyntaxProposalPlugin,
+  classPropertiesPlugin,
+  objectRestSpreadPlugin,
+  throwExpressionsPlugin,
+  destructingPlugin,
+  reactConstantElementsPlugin,
+  runtimePlugin,
+  reactDisplayNamePlugin,
+  dynamicImportPlugin,
+  addModuleExports,
+  envPreset,
+  reactPreset,
+  flowPreset
+] = [
+  'babel-plugin-macros',
+  'babel-plugin-transform-react-remove-prop-types',
+  'babel-plugin-ramda',
+  '@babel/plugin-proposal-pipeline-operator',
+  '@babel/plugin-syntax-pipeline-operator',
+  '@babel/plugin-proposal-class-properties',
+  '@babel/plugin-proposal-object-rest-spread',
+  '@babel/plugin-proposal-throw-expressions',
+  '@babel/plugin-transform-destructuring',
+  '@babel/plugin-transform-react-constant-elements',
+  '@babel/plugin-transform-runtime',
+  'babel-plugin-add-react-displayname',
+  '@babel/plugin-syntax-dynamic-import',
+  'babel-plugin-add-module-exports',
+  '@babel/preset-env',
+  '@babel/preset-react',
+  '@babel/preset-flow'
 ]
+  // eslint-disable-next-line import/no-dynamic-require
+  .map(module => require(module))
+  .map(module => module.default || module)
 
-const devPresets = () => (isProduction() ? [] : [])
-
-const modules = () =>
-  process.env.BABEL_ENV_MODULES === true || isTest() === true
-    ? {}
-    : { modules: false }
-
-const commonPresets = () => [
-  require.resolve('@babel/preset-flow'),
-  require.resolve('@babel/preset-react'),
+const devPlugins = () => []
+const prodPlugins = () => [
   [
-    require.resolve('@babel/preset-env'),
-    Object.assign({}, targets(), modules())
+    // Remove PropTypes from production build
+    reactRemovePropTypesPlugin,
+    {
+      removeImport: true
+    }
+  ]
+]
+const testPlugins = () => []
+const commonPlugins = () =>
+  [
+    macrosPlugin,
+    ramdaPlugin,
+    [pipelineOperatorProposalPlugin, { proposal: 'minimal' }],
+    [pipelineOperatorSyntaxProposalPlugin, { proposal: 'minimal' }],
+    [
+      classPropertiesPlugin,
+      {
+        loose: true
+      }
+    ],
+    [
+      objectRestSpreadPlugin,
+      {
+        useBuiltIns: true
+      }
+    ],
+    throwExpressionsPlugin,
+    destructingPlugin,
+    reactConstantElementsPlugin,
+    reactDisplayNamePlugin,
+    addModuleExports,
+    dynamicImportPlugin
+  ].concat(
+    getOrSetBuildTarget() !== 'server'
+      ? [
+          [
+            runtimePlugin,
+            {
+              corejs: false,
+              helpers: false,
+              regenerator: true,
+              useESModules: false,
+              absoluteRuntime: require.resolve('@babel/runtime/package.json')
+            }
+          ]
+        ]
+      : []
+  )
+
+const prodPresets = () => []
+const devPresets = () => []
+const testPresets = () => []
+const commonPresets = () => [
+  // TODO: require.resolve('@babel/preset-typescript'),
+  flowPreset,
+  [
+    envPreset,
+    Object.assign(
+      {},
+      // isTest() ? {} : { modules: false },
+      {
+        // Users cannot override this behavior because this Babel
+        // configuration is highly tuned for ES5 support
+        ignoreBrowserslistConfig: true,
+        // If users import all core-js they're probably not concerned with
+        // bundle size. We shouldn't rely on magic to try and shrink it.
+        useBuiltIns: false
+        // Do not transform modules to CJS
+        // modules: false
+      },
+      targets()
+    )
+  ],
+  [
+    reactPreset,
+    {
+      // Adds component stack to warning messages
+      // Adds __self attribute to JSX which React will use for some warnings
+      development: !isProduction(),
+      // Will use the native built-in instead of trying to polyfill
+      // behavior for any plugins that require one.
+      useBuiltIns: true
+    }
   ]
 ]
 
-function preset() {
+const decideCache = () => {
+  const cache = isProduction()
+  debug('cache', cache)
+  return cache
+}
+
+const preset = api => {
+  // eslint-disable-next-line better/no-ifs
+  if (api && typeof api.cache === 'function') {
+    api.cache(decideCache())
+  }
+
+  const plugins = commonPlugins()
+    .concat(isProduction() ? prodPlugins() : devPlugins())
+    .concat(isTest() ? testPlugins() : nothing())
+
+  debug('plugins %O', plugins)
+
+  const presets = commonPresets()
+    .concat(isProduction() ? prodPresets() : devPresets())
+    .concat(isTest() ? testPresets() : nothing())
+
+  debug('presets %O', presets)
+
   return {
-    plugins: devPlugins().concat(commonPlugins()),
-    presets: devPresets().concat(commonPresets())
+    sourceType: 'unambiguous',
+    plugins,
+    presets
   }
 }
 
